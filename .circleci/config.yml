@@ -1,0 +1,61 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/protractor
+    docker:
+      - image: circleci/node:10-browsers
+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "package.json" }}
+          - v1-dependencies-
+      - run:
+          name: Install local dependencies
+          command: npm install
+      - save_cache:
+          key: v1-dependencies-{{ checksum "package.json" }}
+          paths:
+            - node_modules
+      - run:
+          name: Run e2e tests
+          command:  |
+            chmod -R 777 ~/protractor
+            npm run pretest
+            npm run test
+      - store_test_results:
+          path : ~/protractor/Reports/e2e
+      - save_cache:
+          key: dependency-cache--{{ checksum "package.json" }}
+          paths:
+            - "node_modules"
+      - store_artifacts:
+          path: ~/protractor/Reports
+
+  deploy:
+    working_directory: ~/protractor
+    docker:
+      - image: kporras07/lighthouse-ci
+    steps:
+      - checkout
+      - run:
+          name: Install local dependencies
+          command: npm install
+      - run:
+          name: Run lighthouse
+          environment:
+            TEST_URL: http://www.angularjs.org
+          command: lighthouse --chrome-flags="--headless --no-sandbox" $TEST_URL --output html --output-path ./report.html
+      - store_artifacts:
+          path: ./report.html
+
+workflows:
+  version: 2
+  protractorAndLighthouseTests:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+
